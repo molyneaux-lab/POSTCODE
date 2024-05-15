@@ -604,9 +604,11 @@ ggsave("Figures/Ten most abundant Genus unfiltered_contaminant.pdf", width = 300
 
 #### Top ten genera: outlier removed ####
 df_filtered <- df_filtered %>%
-  filter(Diagnosis=="COVID") %>%
-  filter(!`sample-id`=="POST.02.005.BAL")
-  
+  filter(Diagnosis=="COVID" | Diagnosis == "Healthy") %>%
+  filter(!`sample-id`=="POST.02.005.BAL" &
+           !`sample-id`=="BRU.1032" & 
+           !`sample-id`=="BRU.03853" & 
+           !`sample-id`=="BRU.03815")
 abund_table <- df_filtered %>%
   select(1,15:ncol(df_filtered))
 abund_table <- column_to_rownames(abund_table, var="sample-id")
@@ -646,12 +648,12 @@ top_other_rowsums
 
 sample_data <- cbind(meta_table, top_other)
 sample_data <- sample_data %>%
-  arrange(Streptococcus, desc(Corynebacterium) # Using desc() If you want to arrange in descending order.
+  arrange(Streptococcus, #desc(Corynebacterium) # Using desc() If you want to arrange in descending order.
   )
 
 # OPTIONAL: Fix the order of sample IDs in the order of genus proportion.
-sample_data$`sample-id` <- factor(sample_data$`sample-id`,
-                                  levels=unique(sample_data$`sample-id`))
+sample_data$PatientID <- factor(sample_data$PatientID,
+                                  levels=unique(sample_data$PatientID))
 
 sample_data_long <- melt(sample_data, id.vars = c("sample-id",
                                                   "PatientID",
@@ -680,11 +682,14 @@ Palette <- c(Streptococcus = "#990000",
              Others = "grey")
 
 ggplot(sample_data_long,
-       aes(x = `sample-id`,
+       aes(x = PatientID,
            y = value,
            fill = Genus)) +
   geom_bar(stat = "identity",
            width = 0.7) +
+  facet_grid(.~Diagnosis,
+             scales = "free_x",
+             drop=TRUE)+  
   scale_fill_manual(values = Palette) +
   scale_y_continuous(expand = c(0, 0),
                      limits = c(0, 100.1)) +
@@ -1501,4 +1506,3 @@ p + scale_fill_manual(values = c("darkblue", "royalblue", "lightskyblue", "gold"
   theme(axis.text.x = element_text(angle=0)) +
   guides(fill = guide_legend(title = "Phylum")) 
 ggsave("Figures/Stacked barplot at Phylum by Diagnosis.pdf", width=11, height = 8, unit="cm")
-

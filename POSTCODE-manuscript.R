@@ -1,4 +1,4 @@
-# setwd()
+setwd("~/OneDrive - Imperial College London/Projects/Experiments/NT002_POSTCODE/")
 path <- getwd()
 
 library("phyloseq")
@@ -433,7 +433,10 @@ ggsave("Figures/Negative genera across BAL samples.pdf", width = 300, height = 1
 #### Alpha-plot ASV ####
 # Is the lung microbiota of COVID different than IPF, CHP and HC?
 physeq_filtered <- subset_samples(physeq, !Diagnosis=="Negative Control") 
-physeq_filtered <- subset_samples(physeq_filtered, !PatientID=="POST.02.005") # remove outlier sample, see "top ten taxa" image
+physeq_filtered <- subset_samples(physeq_filtered, c(!PatientID=="POST.02.005",
+                                                     !PatientID=="BRU.1032",
+                                                     !PatientID=="BRU.03853",
+                                                     !PatientID=="BRU.03815")) # remove outlier sample, see "top ten taxa" image
 p = plot_richness(physeq_filtered, x="Diagnosis", color="Diagnosis", measures=c("Observed","Shannon", "Chao1"))
 
 alpha_diversity <- p$data
@@ -604,9 +607,11 @@ ggsave("Figures/Ten most abundant Genus unfiltered_contaminant.pdf", width = 300
 
 #### Top ten genera: outlier removed ####
 df_filtered <- df_filtered %>%
-  filter(Diagnosis=="COVID") %>%
-  filter(!`sample-id`=="POST.02.005.BAL")
-  
+  filter(Diagnosis=="COVID" | Diagnosis == "Healthy") %>%
+  filter(!`sample-id`=="POST.02.005.BAL" &
+           !`sample-id`=="BRU.1032" & 
+           !`sample-id`=="BRU.03853" & 
+           !`sample-id`=="BRU.03815")
 abund_table <- df_filtered %>%
   select(1,15:ncol(df_filtered))
 abund_table <- column_to_rownames(abund_table, var="sample-id")
@@ -646,12 +651,12 @@ top_other_rowsums
 
 sample_data <- cbind(meta_table, top_other)
 sample_data <- sample_data %>%
-  arrange(Streptococcus, desc(Corynebacterium) # Using desc() If you want to arrange in descending order.
+  arrange(Streptococcus, #desc(Corynebacterium) # Using desc() If you want to arrange in descending order.
   )
 
 # OPTIONAL: Fix the order of sample IDs in the order of genus proportion.
-sample_data$`sample-id` <- factor(sample_data$`sample-id`,
-                                  levels=unique(sample_data$`sample-id`))
+sample_data$PatientID <- factor(sample_data$PatientID,
+                                  levels=unique(sample_data$PatientID))
 
 sample_data_long <- melt(sample_data, id.vars = c("sample-id",
                                                   "PatientID",
@@ -680,11 +685,14 @@ Palette <- c(Streptococcus = "#990000",
              Others = "grey")
 
 ggplot(sample_data_long,
-       aes(x = `sample-id`,
+       aes(x = PatientID,
            y = value,
            fill = Genus)) +
   geom_bar(stat = "identity",
            width = 0.7) +
+  facet_grid(.~Diagnosis,
+             scales = "free_x",
+             drop=TRUE)+  
   scale_fill_manual(values = Palette) +
   scale_y_continuous(expand = c(0, 0),
                      limits = c(0, 100.1)) +
@@ -750,7 +758,8 @@ adonis2(abund_table ~
 # dataframe is top_other from the stacked bar plot figure
 library(ComplexHeatmap)
 df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
-df <- df %>% filter(Diagnosis=="COVID") %>% filter(SampleType=="BAL") 
+df <- df %>% filter(Diagnosis=="COVID") %>% filter(SampleType=="BAL") %>% 
+  filter(!`sample-id`=="POST.02.005.BAL")
 df_filtered <- df %>% drop_na() # 8 missing metadata entries, 1 missing microbiota data.
 
 abund_table <- df_filtered %>%
@@ -1400,7 +1409,7 @@ kruskal.test(Actinomyces ~ Diagnosis, df_genus_top)
 kruskal.test(Neisseria ~ Diagnosis, df_genus_top)
 kruskal.test(Haemophilus ~ Diagnosis, df_genus_top)
 kruskal.test(Sphingomonas ~ Diagnosis, df_genus_top) #p=0.007
-dunnTest(Sphingomonas ~ Diagnosis, df_genus_top, method="holm") # COVID-Healthy, COVID-IPF
+dunnTest(Sphingomonas ~ Diagnosis, df_genus_top, method="holm") # COVID-Healthy
 kruskal.test(Rothia ~ Diagnosis, df_genus_top)
 kruskal.test(Gemella ~ Diagnosis, df_genus_top)
 kruskal.test(Granulicatella ~ Diagnosis, df_genus_top)
@@ -1440,16 +1449,21 @@ p <- ggplot(df_long_summarised, aes(x=Genus, y=mean_value)) +
   geom_errorbar(aes(x=Genus, ymin=(mean_value-sd), ymax=(mean_value+sd)), width=0.3, color='black', linewidth=0.5)
 df_long_summarised$Diagnosis <- ordered(df_long_summarised$Diagnosis, levels = c("Healthy", "COVID","IPF", "CHP"))
 levels(df_long_summarised$Diagnosis)
-p + scale_fill_manual(values = c("darkseagreen", "forestgreen", "darkgreen", "gold", "sandybrown", "coral", "lightskyblue", "royalblue", "darkblue", "firebrick")) + 
-  theme_classic() + 
-  geom_text(data=dat_text, mapping= aes(x=x, y=y, label=label), size = 6) +
-  geom_text(data=dat_text2, mapping= aes(x=x, y=y, label=label), size = 6) +
-  labs(x = "Genus", y = "Relative abundance (%)") + 
-  theme(axis.text.x = element_text(angle=90)) +
-  guides(fill = guide_legend(title = "Genus")) + 
-  facet_grid(Diagnosis~.) 
+p <- p + scale_fill_manual(values = c("darkseagreen", "forestgreen", "darkgreen", "gold", "sandybrown", "coral", "lightskyblue", "royalblue", "darkblue", "firebrick")) + 
+        theme_classic() + 
+        geom_text(data=dat_text, mapping= aes(x=x, y=y, label=label), size = 6) +
+        geom_text(data=dat_text2, mapping= aes(x=x, y=y, label=label), size = 6) +
+        labs(x = "Genus", y = "Relative abundance (%)") + 
+        theme(axis.text.x = element_text(angle=90)) +
+        guides(fill = guide_legend(title = "Genus")) + 
+        facet_grid(Diagnosis~.) 
+p
 
-ggsave("Figures/Ordered barplot at Genus by Diagnosis.pdf", width=11, height = 8, unit="cm")
+pdf(file = "Figures/Ordered barplot at Genus by Diagnosis.pdf", width = 11, height = 8)
+
+# print(p) saves the figure into a file
+print(p)
+dev.off()
 
 #### Stacked bar plot by Diagnosis ####
 ## At phylum level
@@ -1481,6 +1495,17 @@ top
 taxa_list
 
 df_phylum_top <- cbind(meta_table, top)
+
+kruskal.test(Firmicutes ~ Diagnosis, df_phylum_top) #p=0.01
+dunnTest(Firmicutes ~ Diagnosis, df_phylum_top, method="holm") # COVID-Healthy p=0.01, COVID-IPF p=0.03
+kruskal.test(Bacteroidetes ~ Diagnosis, df_phylum_top) #p=0.19
+kruskal.test(Proteobacteria ~ Diagnosis, df_phylum_top) #p=0.02
+dunnTest(Proteobacteria ~ Diagnosis, df_phylum_top, method="holm") # COVID-Healthy p=0.02
+kruskal.test(Actinobacteria ~ Diagnosis, df_phylum_top) #p=0.19
+kruskal.test(Fusobacteria ~ Diagnosis, df_phylum_top) #p=0.17
+kruskal.test(Verrucomicrobia ~ Diagnosis, df_phylum_top) #p=0.03
+dunnTest(Verrucomicrobia ~ Diagnosis, df_phylum_top, method="holm") #NS
+
 df_long <- melt(df_phylum_top, id.vars = "Diagnosis", 
                 measure.vars = c("Firmicutes", "Bacteroidetes", 
                                  "Proteobacteria", "Actinobacteria", 
@@ -1491,14 +1516,35 @@ df_long_summarised <- df_long %>%
   group_by(Diagnosis, Phylum) %>%
   summarise(mean_value=mean(value),
             sd=sd(value))
+
+# Firmicutes
+dat_text <- data.frame(
+  label=c("*", "*","*"),
+  Diagnosis=c("Healthy","COVID","IPF"),
+  x = c(1,2,3), 
+  y = c(80,80,80)
+)
+
+dat_text2 <- data.frame(
+  label=c("*", "*",""),
+  Diagnosis=c("Healthy","COVID","IPF"),
+  x = c(1,2,3), 
+  y = c(18,18,18)
+)
+
 p <- ggplot(df_long_summarised, aes(x=Diagnosis, y=mean_value)) + 
   geom_bar(aes(y = mean_value, x = Diagnosis, fill = Phylum),
            stat="identity", position=position_stack())
 df_long_summarised$Diagnosis <- ordered(df_long_summarised$Diagnosis, levels = c("Healthy", "COVID", "IPF"))
 levels(df_long_summarised$Diagnosis)
+
 p + scale_fill_manual(values = c("darkblue", "royalblue", "lightskyblue", "gold", "sandybrown", "coral", "darkgreen", "forestgreen", "palegreen", "firebrick")) + 
   theme_classic() + labs(x = "Diagnosis", y = "Relative abundance (%)") + 
   theme(axis.text.x = element_text(angle=0)) +
-  guides(fill = guide_legend(title = "Phylum")) 
-ggsave("Figures/Stacked barplot at Phylum by Diagnosis.pdf", width=11, height = 8, unit="cm")
+  guides(fill = guide_legend(title = "Phylum")) +
+  geom_text(data=dat_text, mapping= aes(x=x, y=y, label=label), size = 6, color = "white")+
+  geom_text(data=dat_text2, mapping= aes(x=x, y=y, label=label), size = 6, color = "darkblue")
+
+  
+ggsave("Figures/Stacked barplot at Phylum by Diagnosis.pdf", width=11, height = 15, unit="cm")
 

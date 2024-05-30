@@ -27,7 +27,6 @@ set.seed(202405)
 # Load the metadata file into the environment
 metadata <- read_csv("Original-files/metadata.csv")
 metadata <- metadata %>%
-  filter(!is.na(ddPCR)) %>% # drop any samples with no ddPCR data, this would've resulted in no microbiota reads anyway
   filter(!SampleType=="OR") # only select BAL samples
 metadata <- column_to_rownames(metadata, var = "sample-id")
 
@@ -41,29 +40,29 @@ physeq<-qza_to_phyloseq(
 physeq 
 
 #phyloseq-class experiment-level object
-#otu_table()   OTU Table:         [ 945 taxa and 353 samples ]
-#tax_table()   Taxonomy Table:    [ 945 taxa by 7 taxonomic ranks ]
-#phy_tree()    Phylogenetic Tree: [ 945 tips and 934 internal nodes ]
+#otu_table()   OTU Table:         [ 851 taxa and 291 samples ]
+#tax_table()   Taxonomy Table:    [ 851 taxa by 7 taxonomic ranks ]
+#phy_tree()    Phylogenetic Tree: [ 851 tips and 842 internal nodes ]
 
 mapping=metadata 
-# 269 samples, 13 metadata columns
+# 291 samples, 13 metadata columns
 sample_data(physeq)<-mapping # metadata dataframe becomes the sample_data slot of physeq object
-view(sample_data(physeq)) # check to see if it's correct, no OR samples. 
+#view(sample_data(physeq)) # check to see if it's correct, no OR samples. 
 gplots::venn(list(mapping=rownames(mapping), physeq=sample_names(physeq))) # All samples but one match
 setdiff(rownames(mapping), sample_names(physeq)) #mock samples and OR samples missing which is correct. 
-  # [1] "POST.01.007a.BAL" this is a duplicate BAL sample, but this has never been sent for sequencing.
+  # FL.POST-02-010.BAL.FlushControl mistyped? 
 
 # Contamination check
 ps<-physeq
 summarize_phyloseq(ps)
 # "1] Min. number of reads = 93"
 # "2] Max. number of reads = 1339062"
-# "3] Total number of reads = 9383077"
-# "4] Average number of reads = 35011.4813432836"
-# "5] Median number of reads = 31268"
+# "3] Total number of reads = 9412794"
+# "4] Average number of reads = 34991.7992565056"
+# "5] Median number of reads = 31208"
 # "6] Any OTU sum to 1 or less? YES"
-# "7] Sparsity = 0.962042959804154"
-# "8] Number of singletons = 161"
+# "7] Sparsity = 0.957849719769875"
+# "8] Number of singletons = 66"
 # "9] Percent of OTUs that are singletons \n 
 # "10] Number of sample variables are: 13"
 
@@ -95,7 +94,7 @@ ggplot(df, aes(x=Diagnosis, y = LibrarySize,
   theme_classic()+
   theme(axis.ticks.x = element_blank(),
         axis.text.x = element_text(angle = 30, hjust=1, vjust=1, size=8))
-#ggsave("Figures/Library sizes by Diagnosis groups.pdf", width=11, height=8, unit="in")
+ggsave("Figures/Library sizes by Diagnosis groups.pdf", width=11, height=8, unit="in")
 
 # Rarefaction curve; show how much % of taxa is actually covered. 
   # Made with qiime2 on HPC, or on R
@@ -117,16 +116,17 @@ rarecurve(t(gentab), step = 20, sample = 18000, col = "darkblue", cex = 0.3, xli
 # manually export if needed
 
 #### Normalisation WITHOUT removing contaminants ####
-sample_data(ps)$is.neg <- sample_data(ps)$Diagnosis=="Negative Control" #Only considered reagent control as negative
-contamdf.freq <- isContaminant(ps, method="combined", conc="ddPCR", neg="is.neg", threshold=0.1) 
+ps_ddPCR <- subset_samples(ps, !is.na(sample_data(ps)$ddPCR))
+sample_data(ps_ddPCR)$is.neg <- sample_data(ps_ddPCR)$Diagnosis=="Negative Control" #Only considered reagent control as negative
+contamdf.freq <- isContaminant(ps_ddPCR, method="combined", conc="ddPCR", neg="is.neg", threshold=0.1) 
 # Gets data frame with a list of potential contaminants
 
-table(contamdf.freq$contaminant)#FALSE=925, TRUE=20
+table(contamdf.freq$contaminant)#FALSE=831, TRUE=20
 head(which(contamdf.freq$contaminant)) # not the highest abundant taxa
-# [1] 395 445 491 493 504 552
+#[1] 368 413 452 454 463 509
 
 # To make a presence/absence plot
-ps.pa <- transform_sample_counts(ps, function(abund) 1*(abund>0))
+ps.pa <- transform_sample_counts(ps_ddPCR, function(abund) 1*(abund>0))
 # Transforms data to absence or presence 
 ps.pa.neg <- prune_samples(sample_data(ps.pa)$Diagnosis =="Negative Control", ps.pa)
 ps.pa.pos <- prune_samples(!sample_data(ps.pa)$Diagnosis == "Negative Control", ps.pa)
@@ -158,10 +158,10 @@ summarize_phyloseq(ps)
 ps
 
 #phyloseq-class experiment-level object
-#otu_table()   OTU Table:         [ 945 taxa and 268 samples ]
-#sample_data() Sample Data:       [ 268 samples by 13 sample variables ]
-#tax_table()   Taxonomy Table:    [ 945 taxa by 7 taxonomic ranks ]
-#phy_tree()    Phylogenetic Tree: [ 945 tips and 934 internal nodes ]
+#otu_table()   OTU Table:         [ 851 taxa and 269 samples ]
+#sample_data() Sample Data:       [ 269 samples by 14 sample variables ]
+#tax_table()   Taxonomy Table:    [ 851 taxa by 7 taxonomic ranks ]
+#phy_tree()    Phylogenetic Tree: [ 851 tips and 842 internal nodes ]
 
 # Extract taxa information to get the number of unique Phyla
 tax <- as(tax_table(ps), "matrix")
@@ -192,11 +192,11 @@ sum(taxa_sums(prunedSet)==0) # should be 0
 summarize_phyloseq(prunedSet)
 # 1] Min. number of reads = 79"
 # "2] Max. number of reads = 1337785"
-# "3] Total number of reads = 9325479"
-# "4] Average number of reads = 34796.5634328358"
-# "5] Median number of reads = 31159"
+# "3] Total number of reads = 9355057"
+# "4] Average number of reads = 34777.1635687732"
+# "5] Median number of reads = 31137"
 # "6] Any OTU sum to 1 or less? NO"
-# "7] Sparsity = 0.844968120562237"
+# "7] Sparsity = 0.844930883892157"
 # "8] Number of singletons = 0"
 # "9] Percent of OTUs that are singletons \n
 # "10] Number of sample variables are: 14
@@ -209,27 +209,27 @@ Controls_relative = transformSampleCounts(prunedSet, normalizeSample)
 otu_table(Controls_relative)
 OTU1 = as(otu_table(Controls_relative), "matrix")
 OTUdf = as.data.frame(OTU1)
-#write.csv(OTUdf, "Original-files/OTUdf.csv")
+write.csv(OTUdf, "Original-files/OTUdf.csv")
 
 TAXdf = as(tax_table(Controls_relative), "matrix")
 TAXdf = as.data.frame(TAXdf)
-#write.csv(TAXdf, "Original-files/tax_table.csv")
+write.csv(TAXdf, "Original-files/tax_table.csv")
 
 Controls_Phylum <- aggregate_taxa(Controls_relative, 'Phylum') #7 phyla most likely a contaminant
 otu_table<-as.data.frame(Controls_Phylum@otu_table)
-#write.table(otu_table,file="Unfiltered/Phylum/Phylum-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
+write.table(otu_table,file="Unfiltered/Phylum/Phylum-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
 
 Controls_Class <- aggregate_taxa(Controls_relative, 'Class')
 otu_table<-as.data.frame(Controls_Class@otu_table)
-#write.table(otu_table,file="Unfiltered/Class/Class-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
+write.table(otu_table,file="Unfiltered/Class/Class-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
 
 Controls_Family <- aggregate_taxa(Controls_relative, 'Family')
 otu_table<-as.data.frame(Controls_Family@otu_table)
-#write.table(otu_table,file="Unfiltered/Family/Family-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
+write.table(otu_table,file="Unfiltered/Family/Family-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
 
 Controls_Genus <- aggregate_taxa(Controls_relative, 'Genus')
 otu_table<-as.data.frame(Controls_Genus@otu_table)
-#write.table(otu_table,file="Unfiltered/Genus/Genus-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
+write.table(otu_table,file="Unfiltered/Genus/Genus-relative-abundance.txt", col.names=NA, row.names=T,sep="\t")
 
 ## Have joined clinical metadata to the taxanomic reads. 
 # every row is a sample and every column is a unique taxa member e.g., genus
@@ -251,16 +251,16 @@ kruskal.test(ddPCR ~ Diagnosis, data = bacterial_burden)
 dunn_Test <- dunnTest(ddPCR ~ Diagnosis, data=bacterial_burden, method = "holm")
 
 # Comparison                        Z            P.unadj        P.adj
-#1  CHP - COVID                     -0.3562195  7.216762e-01 1.000000e+00
-#2  CHP - IPF                       -3.1490803  1.637852e-03 9.827112e-03 # sig
-#3  COVID - IPF                     -2.0550020  3.987881e-02 1.595152e-01
-#4  CHP - Negative Control          8.4067875   4.213936e-17 3.792543e-16 # sig
-#5  COVID - Negative Control        6.6133977   3.755976e-11 2.629183e-10  # sig 
-#6  IPF - Negative Control          9.7464031   1.911201e-22 1.911201e-21 # sig
-#7  CHP - Non-fibrotic controls     -0.6743500  5.000888e-01 1.000000e+00
-#8  COVID - Non-fibrotic controls   -0.1851490  8.531122e-01 8.531122e-01
-#9 IPF - Non-fibrotic controls      2.1347475   3.278164e-02 1.639082e-01
-#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 6.768369e-14 # sig
+#1  CHP - COVID                     -0.3562195  7.216762e-01 1.107226e-04 # sig
+#2  CHP - IPF                       -3.1490803  1.637852e-03 3.204583e-02 # sig
+#3  COVID - IPF                     -2.0550020  3.987881e-02 4.939650e-01
+#4  CHP - Negative Control          8.4067875   4.213936e-17 7.069839e-15 # sig
+#5  COVID - Negative Control        6.6133977   3.755976e-11 7.347953e-26  # sig 
+#6  IPF - Negative Control          9.7464031   1.911201e-22 1.627885e-18 # sig
+#7  CHP - Non-fibrotic controls     -0.6743500  5.000888e-01 2.814168e-02 # sig
+#8  COVID - Non-fibrotic controls   -0.1851490  8.531122e-01 3.502319e-01
+#9 IPF - Non-fibrotic controls      2.1347475   3.278164e-02 7.692781e-01
+#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 8.381049e-21 # sig
 
 bacterial_burden_stats$Diagnosis <- factor(bacterial_burden_stats$Diagnosis, 
                                            levels = c("CHP", "COVID", "IPF",
@@ -279,15 +279,13 @@ p <- ggplot(bacterial_burden_stats, aes(x=Diagnosis, y=ddPCR, fill=Diagnosis)) +
   theme(axis.text.x = element_text(angle=45, hjust=1))
 p
 
-#ggsave("Figures/Bacterial burden by Diagnosis groups.pdf", width=11, height=8, unit="in")
+ggsave("Figures/Bacterial burden by Diagnosis groups.pdf", width=11, height=8, unit="in")
 
 ##### Negative Control images #####
 #### Negative PCOA Plot ####
 df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
 df <- df %>%
-  filter(!is.na(Actinomyces)) %>%
-  select(!Unknown) %>% # drop unknown genera
-  filter(!SampleType=="OR") # only BAL and negative control samples (BAL flush and reagent)
+  select(!Unknown) # drop unknown genera
 abund_table <- df %>%
   select(1,15:ncol(df))
 abund_table <- column_to_rownames(abund_table, var="sample-id")
@@ -301,9 +299,6 @@ pc2_variance <- summary(Negative_PCA)$importance[2, 2] * 100  # Proportion of Va
 
 str(Negative_PCA$x) #x is the coordinates of each sample on the plot
 Negative_PCA2 <- cbind(df, Negative_PCA$x[,1:2])
-
-# is ddPCR a significant factor in data spread
-adonis2(abund_table ~ ddPCR, data=metadata, permutations=999, method="bray")
 
 Negative_PCA2$Diagnosis <- factor(Negative_PCA2$Diagnosis, 
                                            levels = c("CHP", "COVID", "IPF",
@@ -325,15 +320,14 @@ ggplot(Negative_PCA2, aes(PC1, PC2, colour=Diagnosis))+
         legend.spacing = unit(0.1,"cm"))
   # annotate("text", x=5, y=4, label="Permanova: p<0.05", size=3, fontface="italic")
 
-#ggsave("Figures/PCoA of BAL samples by Diagnosis groups.pdf", width=11, height=8, unit="in")
+ggsave("Figures/PCoA of BAL samples by Diagnosis groups.pdf", width=11, height=8, unit="in")
 
 #### Negative genera bar plot #####
 ## Presence of contaminants across TRUE samples based on negative controls
 df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
 df <- df %>%
-  filter(!is.na(Actinomyces)) %>%
-  select(!Unknown) %>% # drop unknown genera
-  filter(!SampleType=="OR") # only BAL samples
+  select(!Unknown) %>% # Ignore Unknown
+  filter(!Diagnosis == "Mock") 
 
 metadata <- df %>%
   select(`sample-id`:`FVC %`)
@@ -364,7 +358,7 @@ df_negative_long <- melt(df_negative, id.vars = c("sample-id",
                                                   "SampleType",
                                                   "Diagnosis",
                                                   "Severe FVC",
-                                                  "Severe TLCO",
+                                                  "Severe DLCO",
                                                   "Severe Either PFTs",
                                                   "Severe CT",
                                                   "Severe anything",
@@ -450,7 +444,7 @@ ggplot(df_negative_long_summarised,
   )
 
 #Save as a pdf for size to go into Inkspace figure
-#ggsave("Figures/Negative genera across BAL samples.pdf", width = 300, height = 150, units = c("mm"), dpi = 300)
+ggsave("Figures/Negative genera across BAL samples.pdf", width = 300, height = 150, units = c("mm"), dpi = 300)
 
 #### PCA of Non-fibrotic controls vs non-fibrotic disease controls ####
 ### Are they significantly different ? 
@@ -517,8 +511,8 @@ ggplot(Controls_PCA2, aes(PC1, PC2, colour=Diagnosis))+
         legend.key.size = unit(0.2, "cm"),
         legend.spacing = unit(0.1,"cm"))
 
-#ggsave("Figures/BAL of Non-fibrotic controls vs. non-fibrotic disease controls.jpg", 
-#       width = 11, height=8, unit=c("in"))
+ggsave("Figures/BAL of Non-fibrotic controls vs. non-fibrotic disease controls.jpg", 
+       width = 11, height=8, unit=c("in"))
 
 #### Heatmap of Non-fibrotic controls vs. non-fibrotic disease control ####
 # Heatmap related to all clinical parameters that are relevant
@@ -569,7 +563,7 @@ colour_palette <- colorRampPalette(colors=c("white",
 
 # Add annotation to heatmap AFTER distance matrix has been calculated
 # the metadata does not influence the distance matrix. 
-# only interested in: FVC, TLCO, CT, Fibrosis
+# only interested in: FVC, DLCO, CT, Fibrosis
 annot_df1 <- data.frame(Diagnosis = df_healthy_meta$Diagnosis)
 
 col1 = list(Diagnosis = c("Healthy" = "#2a8000",
@@ -616,8 +610,7 @@ dev.off()
 
 ##### Top ten taxa: Stacked bar plot, COVID ####
 df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
-df <- df %>% filter(Diagnosis=="COVID" | Diagnosis=="Non-fibrotic controls") %>% filter(SampleType=="BAL") 
-df_filtered <- df %>% drop_na(Streptococcus) # 8 missing metadata entries, 1 missing microbiota data.
+df_filtered <- df %>% filter(Diagnosis=="COVID" | Diagnosis=="Non-fibrotic controls") %>% filter(SampleType=="BAL") 
 
 abund_table <- df_filtered %>%
   select(1,15:ncol(df_filtered))
@@ -669,7 +662,7 @@ sample_data_long <- melt(sample_data, id.vars = c("sample-id",
                                                   "PatientID",
                                                   "Diagnosis",
                                                   "Severe FVC",
-                                                  "Severe TLCO",
+                                                  "Severe DLCO",
                                                   "Severe Either PFTs",
                                                   "Severe CT",
                                                   "Severe anything",
@@ -732,25 +725,24 @@ ggplot(sample_data_long,
     aspect.ratio = 0.5
   )
 
-#ggsave("Figures/Ten most abundant Genus unfiltered_contaminant.pdf", width = 300, height = 150, units = c("mm"), dpi = 300)
+ggsave("Figures/Ten most abundant Genus unfiltered_contaminant.pdf", width = 300, height = 150, units = c("mm"), dpi = 300)
 
 # Clearly one COVID sample is an outlier. POST.02.005.BAL will be excluded.
 # BRU.1032, BRU0.3853 and BRU.03815 to be excluded too for Non-fibrotic controls.
 
 #### Alpha-plot ASV ####
 # Is the lung microbiota of COVID different than IPF, CHP and HC?
-physeq_filtered <- subset_samples(physeq, !Diagnosis=="Negative Control") 
-sample_data(physeq_filtered)$Diagnosis <- gsub("Healthy",
-                                               "Non-fibrotic control",
-                                               sample_data(physeq_filtered)$Diagnosis)
+physeq_filtered <- subset_samples(physeq, c(!Diagnosis=="Negative Control",
+                                            !PatientID=="POST.02.005",
+                                            !PatientID=="BRU.1032",
+                                            !PatientID=="BRU.03853",
+                                            !PatientID=="BRU.03815",
+                                            !Diagnosis=="Mock")) 
+
 sample_data(physeq_filtered)$Diagnosis <- factor(sample_data(physeq_filtered)$Diagnosis,
                                                  levels =c("CHP", "COVID", 
-                                                           "Non-fibrotic control", "IPF"))
-# Removal of samples that are highly contaminated
-physeq_filtered <- subset_samples(physeq_filtered, c(!PatientID=="POST.02.005",
-                                                     !PatientID=="BRU.1032",
-                                                     !PatientID=="BRU.03853",
-                                                     !PatientID=="BRU.03815")) # remove outlier sample, see "top ten taxa" image
+                                                           "Non-fibrotic controls", "IPF"))
+
 p = plot_richness(physeq_filtered, x="Diagnosis", color="Diagnosis", measures=c("Observed","Shannon", "Chao1"))
 
 alpha_diversity <- p$data
@@ -762,12 +754,12 @@ kruskal.test(value ~ Diagnosis, alpha_diversity_chao)
 dunnTest(value ~ Diagnosis, alpha_diversity_chao)
 
 #Comparison          Z     P.unadj      P.adj
-#1                  CHP - COVID -2.7277255 0.006377265 0.03188633
-#2                    CHP - IPF  0.5746988 0.565495002 0.56549500
-#3                  COVID - IPF  2.8327716 0.004614634 0.02768780
-#4   CHP - Non-fibrotic control -2.0607615 0.039325802 0.11797741
-#5 COVID - Non-fibrotic control  0.9398803 0.347278977 0.69455795
-#6   IPF - Non-fibrotic control -2.2193536 0.026462678 0.10585071
+#1                  CHP - COVID -2.7277255 0.006377265 0.04096938 # sig
+#2                    CHP - IPF  0.5746988 0.565495002 0.52190192
+#3                  COVID - IPF  2.8327716 0.004614634 0.03127422 # sig
+#4   CHP - Non-fibrotic control -2.0607615 0.039325802 0.07338371
+#5 COVID - Non-fibrotic control  0.9398803 0.347278977 0.94239584
+#6   IPF - Non-fibrotic control -2.2193536 0.026462678 0.06225628
 print(p)
 
 p + geom_boxplot(data = p$data, aes(x = Diagnosis, y = value, color = NULL), alpha = 0.1) +
@@ -775,16 +767,16 @@ p + geom_boxplot(data = p$data, aes(x = Diagnosis, y = value, color = NULL), alp
   theme_classic()+ theme(axis.text.x=element_blank())
 
 ggsave("Figures/Alpha Diversity by Diagnosis.pdf", width = 11, height = 8, units = "in")
-#
+
 p = plot_richness(physeq_filtered, x="Diagnosis", color="Diagnosis", measures=c("Chao1"))
 p + geom_boxplot(data = p$data, aes(x = Diagnosis, y = value, color = NULL), alpha = 0.1) +
   scale_colour_manual(values=c("#FAAB18", "#1380A1", "#990000", "#588300", "#778899")) + 
   theme_classic()+ theme(axis.text.x=element_blank()) + 
-  annotate("text", x=1.5, y=85, label="p=0.032", size=3) + 
+  annotate("text", x=1.5, y=85, label="p=0.041", size=3) + 
   annotate("segment", x=1,xend=2, y=80, yend=80) + 
-  annotate("text", x=3, y=90, label="p=0.027", size=3) + 
+  annotate("text", x=3, y=90, label="p=0.031", size=3) + 
   annotate("segment", x=2,xend=4, y=85, yend=85)
-#ggsave("Figures/Chao1 Diversity (ASV) by Diagnosis.pdf", width = 11, height = 8, units = "in")
+ggsave("Figures/Chao1 Diversity (ASV) by Diagnosis.pdf", width = 11, height = 8, units = "in")
 
 #### Beta-plot ASV ####
 ordu = ordinate(physeq_filtered, "PCoA", "unifrac", weighted=TRUE)
@@ -799,11 +791,13 @@ myplotdiagnosis + theme_bw() + stat_ellipse() + theme_classic() +
         panel.grid.minor = element_blank(), 
         axis.line = element_line(colour = "black")) + 
   scale_colour_manual(values=c("#FAAB18", "#1380A1", "#990000", "#588300", "#778899"))
-#ggsave("Figures/Beta Diversity by Diagnosis.pdf", width = 11, height = 8, units = "in")
+ggsave("Figures/Beta Diversity by Diagnosis.pdf", width = 11, height = 8, units = "in")
 
 #### Top ten genera: outlier removed ####
-df_filtered <- df_filtered %>%
+df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
+df_filtered <- df %>% 
   filter(Diagnosis=="COVID" | Diagnosis == "Non-fibrotic controls") %>%
+  filter(SampleType == "BAL") %>%
   filter(!`sample-id`=="POST.02.005.BAL" &
            !`sample-id`=="BRU.1032" & 
            !`sample-id`=="BRU.03853" & 
@@ -858,7 +852,7 @@ sample_data_long <- melt(sample_data, id.vars = c("sample-id",
                                                   "PatientID",
                                                   "Diagnosis",
                                                   "Severe FVC",
-                                                  "Severe TLCO",
+                                                  "Severe DLCO",
                                                   "Severe Either PFTs",
                                                   "Severe CT",
                                                   "Severe anything",
@@ -940,7 +934,7 @@ meta_table <- df_filtered %>%
 adonis2(abund_table ~ 
           `Severe CT`,
           #`Severe FVC`,
-          #`Severe TLCO`,
+          #`Severe DLCO`,
           #`Severe Either PFTs`,
           #`Severe anything`,
           #`PFT Improvement`,
@@ -954,9 +948,8 @@ adonis2(abund_table ~
 # dataframe is top_other from the stacked bar plot figure
 library(ComplexHeatmap)
 df <- read_csv("Unfiltered/Genus/Genus-normalised-metadata.csv")
-df <- df %>% filter(Diagnosis=="COVID") %>% filter(SampleType=="BAL") %>% 
+df_filtered <- df %>% filter(Diagnosis=="COVID") %>% filter(SampleType=="BAL") %>% 
   filter(!`sample-id`=="POST.02.005.BAL")
-df_filtered <- df %>% drop_na() # 8 missing metadata entries, 1 missing microbiota data.
 
 abund_table <- df_filtered %>%
   select(3,15:ncol(df_filtered))
@@ -1004,29 +997,29 @@ colour_palette <- colorRampPalette(colors=c("white",
                                             "black"))(100)
 # Add annotation to heatmap AFTER distance matrix has been calculated
 # the metadata does not influence the distance matrix. 
-# only interested in: FVC, TLCO, CT, Fibrosis
+# only interested in: FVC, DLCO, CT, Fibrosis
 meta_table_COVID <- df_filtered %>%
   select(`sample-id`:`FVC %`)
 meta_table_COVID <- meta_table_COVID %>%
   mutate(`Severe FVC` = ifelse(`Severe CT`=="1", "FVC<80%", "FVC>80%")) %>%
-  mutate(`Severe TLCO` = ifelse(`Severe TLCO`=="1", "TLCO<50%", "TLCO>50%")) %>%
+  mutate(`Severe DLCO` = ifelse(`Severe DLCO`=="1", "DLCO<50%", "DLCO>50%")) %>%
   mutate(`Severe CT` = ifelse(`Severe CT`=="1", "Disease extent>20%", "Disease extent<20%")) %>%
   mutate(Fibrosis = ifelse(Fibrosis=="1", "Fibrosis on CT", "No Fibrosis on CT"))
 
 meta_table_COVID$`Severe FVC` <- as.factor(meta_table_COVID$`Severe FVC`)
-meta_table_COVID$`Severe TLCO` <- as.factor(meta_table_COVID$`Severe TLCO`)
+meta_table_COVID$`Severe DLCO` <- as.factor(meta_table_COVID$`Severe DLCO`)
 meta_table_COVID$`Severe CT` <- as.factor(meta_table_COVID$`Severe CT`)
 meta_table_COVID$Fibrosis <- as.factor(meta_table_COVID$Fibrosis)
 
 annot_df1 <- data.frame(FVC = meta_table_COVID$`Severe FVC`)
-annot_df2 <- data.frame(TLCO = meta_table_COVID$`Severe TLCO`)
+annot_df2 <- data.frame(DLCO = meta_table_COVID$`Severe DLCO`)
 annot_df3 <- data.frame(CT = meta_table_COVID$`Severe CT`)
 annot_df4 <- data.frame(Fibrosis = meta_table_COVID$Fibrosis)
 
 col1 = list(FVC = c("FVC<80%" = "#FAAB18",
                     "FVC>80%" = "#1380A1"))
-col2 = list(TLCO = c("TLCO<50%" = "#FAAB18",
-                     "TLCO>50%" = "#1380A1"))
+col2 = list(DLCO = c("DLCO<50%" = "#FAAB18",
+                     "DLCO>50%" = "#1380A1"))
 col3 = list(CT = c("Disease extent<20%" = "#FAAB18",
                    "Disease extent>20%" = "#1380A1"))
 col4 = list(Fibrosis = c("Fibrosis on CT" = "#FAAB18",
@@ -1043,7 +1036,7 @@ sidebar_annotation2 <- rowAnnotation(df = annot_df2, # Dataframe containing trea
                                      col = col2, # The list of treatment groups and their assigned colours
                                      show_annotation_name = TRUE,
                                      annotation_width = unit(c(.2), "cm"), # Set the width of the side bar
-                                     annotation_legend_param = list(title = "Severe TLCO", # Sidebar legend title
+                                     annotation_legend_param = list(title = "Severe DLCO", # Sidebar legend title
                                                                     title_gp = gpar(fontsize = 7), # Sidebar legend title font size
                                                                     labels_gp = gpar(fontsize = 7))) # Sidebar legend label font size
 sidebar_annotation3 <- rowAnnotation(df = annot_df3, # Dataframe containing treatment groups
@@ -1120,7 +1113,7 @@ meta_table$`Severe FVC` <- as.factor(meta_table$`Severe FVC`)
 meta_table$`Severe anything` <- as.factor(meta_table$`Severe anything`)
 meta_table$`Severe CT` <- as.factor(meta_table$`Severe CT`)
 meta_table$`Severe Either PFTs` <- as.factor(meta_table$`Severe Either PFTs`)
-meta_table$`Severe TLCO` <- as.factor(meta_table$`Severe TLCO`)
+meta_table$`Severe DLCO` <- as.factor(meta_table$`Severe DLCO`)
 meta_table$`PFT Improvement` <- as.factor(meta_table$`PFT Improvement`)
 meta_table$Fibrosis <- as.factor(meta_table$Fibrosis)
 
@@ -1573,7 +1566,6 @@ df_genus <- df_genus %>%
   #filter(!Diagnosis=="COVID") %>% filter(!Diagnosis=="Negative Control") %>%
   filter(!SampleType=="OR") %>%
   select(-Unknown) %>%
-  drop_na(ddPCR | Actinomyces) %>%
   filter(!PatientID=="POST.02.005") %>% filter(!PatientID == "BRU.1032") %>% 
   filter(!PatientID == "BRU.03853") %>% filter(!PatientID == "BRU.03853") %>%
   filter(!PatientID=="BRU.03815") 
@@ -1604,7 +1596,7 @@ kruskal.test(Veillonella ~ Diagnosis, df_genus_top)
 kruskal.test(Actinomyces ~ Diagnosis, df_genus_top)
 kruskal.test(Neisseria ~ Diagnosis, df_genus_top)
 kruskal.test(Haemophilus ~ Diagnosis, df_genus_top)
-kruskal.test(Sphingomonas ~ Diagnosis, df_genus_top) #p=0.007
+kruskal.test(Sphingomonas ~ Diagnosis, df_genus_top) #p=0.001
 dunnTest(Sphingomonas ~ Diagnosis, df_genus_top, method="holm") # COVID-Non-fibrotic controls
 kruskal.test(Rothia ~ Diagnosis, df_genus_top)
 kruskal.test(Gemella ~ Diagnosis, df_genus_top)
@@ -1626,7 +1618,7 @@ df_long_summarised <- df_long %>%
             q3 = quantile(value, 0.75)) # 3rd quartile
 
 dat_text <- data.frame(
-  label=c(" ", "*","*"),
+  label=c(" ", "**","**"),
   Diagnosis=c("Non-fibrotic controls","COVID","IPF"),
   x = c(1,1,1), 
   y = c(40,50,40)
@@ -1692,11 +1684,11 @@ taxa_list
 
 df_phylum_top <- cbind(meta_table, top)
 
-kruskal.test(Firmicutes ~ Diagnosis, df_phylum_top) #p=0.01
-dunnTest(Firmicutes ~ Diagnosis, df_phylum_top, method="holm") # COVID-Non-fibrotic controls p=0.01, COVID-IPF p=0.03
+kruskal.test(Firmicutes ~ Diagnosis, df_phylum_top) #p=0.02
+dunnTest(Firmicutes ~ Diagnosis, df_phylum_top, method="holm") # COVID-Non-fibrotic controls p=0.01, COVID-IPF p=0.04
 kruskal.test(Bacteroidetes ~ Diagnosis, df_phylum_top) #p=0.19
-kruskal.test(Proteobacteria ~ Diagnosis, df_phylum_top) #p=0.02
-dunnTest(Proteobacteria ~ Diagnosis, df_phylum_top, method="holm") # COVID-Non-fibrotic controls p=0.02
+kruskal.test(Proteobacteria ~ Diagnosis, df_phylum_top) #p=0.04
+dunnTest(Proteobacteria ~ Diagnosis, df_phylum_top, method="holm") # NS
 kruskal.test(Actinobacteria ~ Diagnosis, df_phylum_top) #p=0.19
 kruskal.test(Fusobacteria ~ Diagnosis, df_phylum_top) #p=0.17
 kruskal.test(Verrucomicrobia ~ Diagnosis, df_phylum_top) #p=0.03
@@ -1721,13 +1713,6 @@ dat_text <- data.frame(
   y = c(80,80,80)
 )
 
-dat_text2 <- data.frame(
-  label=c("*", "*",""),
-  Diagnosis=c("Non-fibrotic controls","COVID","IPF"),
-  x = c(1,2,3), 
-  y = c(18,18,18)
-)
-
 p <- ggplot(df_long_summarised, aes(x=Diagnosis, y=mean_value)) + 
   geom_bar(aes(y = mean_value, x = Diagnosis, fill = Phylum),
            stat="identity", position=position_stack())
@@ -1739,8 +1724,8 @@ p + scale_fill_manual(values = c("darkblue", "royalblue", "lightskyblue", "gold"
   theme(axis.text.x = element_text(angle=0)) +
   guides(fill = guide_legend(title = "Phylum")) +
   geom_text(data=dat_text, mapping= aes(x=x, y=y, label=label), size = 6, color = "white")+
-  geom_text(data=dat_text2, mapping= aes(x=x, y=y, label=label), size = 6, color = "darkblue") +
   theme(axis.text.x = element_text(angle = 45,
                                      hjust=1))
 
+  
 ggsave("Figures/Stacked barplot at Phylum by Diagnosis.pdf", width=11, height = 15, unit="cm")

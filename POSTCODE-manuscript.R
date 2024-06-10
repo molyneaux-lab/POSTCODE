@@ -240,6 +240,7 @@ bacterial_burden <- metadata %>%
   select(ddPCR, Diagnosis, SampleType)
 
 bacterial_burden_stats <- bacterial_burden %>%
+  drop_na(ddPCR) %>%
   group_by(Diagnosis) %>%
   mutate(median_burden = median(ddPCR),
          mean_burden = mean(ddPCR),
@@ -250,17 +251,17 @@ bacterial_burden_stats <- bacterial_burden %>%
 kruskal.test(ddPCR ~ Diagnosis, data = bacterial_burden)
 dunn_Test <- dunnTest(ddPCR ~ Diagnosis, data=bacterial_burden, method = "holm")
 
-# Comparison                        Z            P.unadj        P.adj
-#1  CHP - COVID                     -0.3562195  7.216762e-01 1.107226e-04 # sig
-#2  CHP - IPF                       -3.1490803  1.637852e-03 3.204583e-02 # sig
-#3  COVID - IPF                     -2.0550020  3.987881e-02 4.939650e-01
-#4  CHP - Negative Control          8.4067875   4.213936e-17 7.069839e-15 # sig
-#5  COVID - Negative Control        6.6133977   3.755976e-11 7.347953e-26  # sig 
-#6  IPF - Negative Control          9.7464031   1.911201e-22 1.627885e-18 # sig
-#7  CHP - Non-fibrotic controls     -0.6743500  5.000888e-01 2.814168e-02 # sig
-#8  COVID - Non-fibrotic controls   -0.1851490  8.531122e-01 3.502319e-01
-#9 IPF - Non-fibrotic controls      2.1347475   3.278164e-02 7.692781e-01
-#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 8.381049e-21 # sig
+#Comparison                                       Z      P.unadj        P.adj
+#1                               CHP - COVID -0.3562195 7.216762e-01 1.000000e+00
+#2                                 CHP - IPF -3.1490803 1.637852e-03 9.827112e-03 #sig
+#3                               COVID - IPF -2.0550020 3.987881e-02 1.595152e-01
+#4                    CHP - Negative Control  8.4067875 4.213936e-17 3.792543e-16 #sig
+#5                  COVID - Negative Control  6.6133977 3.755976e-11 2.629183e-10 #sig
+#6                    IPF - Negative Control  9.7464031 1.911201e-22 1.911201e-21 #sig
+#7               CHP - Non-fibrotic controls -0.6743500 5.000888e-01 1.000000e+00
+#8             COVID - Non-fibrotic controls -0.1851490 8.531122e-01 8.531122e-01
+#9               IPF - Non-fibrotic controls  2.1347475 3.278164e-02 1.639082e-01
+#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 6.768369e-14
 
 bacterial_burden_stats$Diagnosis <- factor(bacterial_burden_stats$Diagnosis, 
                                            levels = c("CHP", "COVID", "IPF",

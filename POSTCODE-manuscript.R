@@ -244,6 +244,7 @@ bacterial_burden_stats <- bacterial_burden %>%
   group_by(Diagnosis) %>%
   mutate(median_burden = median(ddPCR),
          mean_burden = mean(ddPCR),
+         sd=sd(ddPCR),
          q1 = quantile(ddPCR, 0.25),  # 1st quartile
          q3 = quantile(ddPCR, 0.75), # 3rd quartile
          norm_test = shapiro.test(ddPCR)$p.value) # Get p-value from shapiro.test
@@ -252,19 +253,19 @@ kruskal.test(ddPCR ~ Diagnosis, data = bacterial_burden)
 dunn_Test <- dunnTest(ddPCR ~ Diagnosis, data=bacterial_burden, method = "holm")
 
 #Comparison                                       Z      P.unadj        P.adj
-#1                               CHP - COVID -0.3562195 7.216762e-01 1.000000e+00
-#2                                 CHP - IPF -3.1490803 1.637852e-03 9.827112e-03 #sig
+#1                               Fibrotic HP - COVID -0.3562195 7.216762e-01 1.000000e+00
+#2                                 Fibrotic HP - IPF -3.1490803 1.637852e-03 9.827112e-03 #sig
 #3                               COVID - IPF -2.0550020 3.987881e-02 1.595152e-01
-#4                    CHP - Negative Control  8.4067875 4.213936e-17 3.792543e-16 #sig
+#4                    Fibrotic HP - Negative Control  8.4067875 4.213936e-17 3.792543e-16 #sig
 #5                  COVID - Negative Control  6.6133977 3.755976e-11 2.629183e-10 #sig
 #6                    IPF - Negative Control  9.7464031 1.911201e-22 1.911201e-21 #sig
-#7               CHP - Non-fibrotic controls -0.6743500 5.000888e-01 1.000000e+00
+#7               Fibrotic HP - Non-fibrotic controls -0.6743500 5.000888e-01 1.000000e+00
 #8             COVID - Non-fibrotic controls -0.1851490 8.531122e-01 8.531122e-01
 #9               IPF - Non-fibrotic controls  2.1347475 3.278164e-02 1.639082e-01
-#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 6.768369e-14
+#10 Negative Control - Non-fibrotic controls -7.7604859 8.460461e-15 6.768369e-14 #sig
 
 bacterial_burden_stats$Diagnosis <- factor(bacterial_burden_stats$Diagnosis, 
-                                           levels = c("CHP", "COVID", "IPF",
+                                           levels = c("Fibrotic HP", "COVID", "IPF",
                                              "Non-fibrotic controls", "Negative Control"))
 
 p <- ggplot(bacterial_burden_stats, aes(x=Diagnosis, y=ddPCR, fill=Diagnosis)) +
@@ -274,8 +275,8 @@ p <- ggplot(bacterial_burden_stats, aes(x=Diagnosis, y=ddPCR, fill=Diagnosis)) +
   labs(title="Bacterial burden across disease groups",
        y="Bacteridal burden (16S rRNA gene/mL of BAL)",
        x="") +
-  annotate("text", x = 3, y=18000000, label= "p<0.001", size = 4) +
-  annotate("segment", x=1, xend=5, y=1e07, yend=1e07)+
+  annotate("text", x = 2, y=18000000, label= "p<0.001", size = 4) +
+  annotate("segment", x=1, xend=3, y=1e07, yend=1e07)+
   scale_fill_manual(values=c("#FAAB18", "#1380A1", "#990000", "#588300", "#778899")) +
   theme(axis.text.x = element_text(angle=45, hjust=1))
 p
@@ -302,7 +303,7 @@ str(Negative_PCA$x) #x is the coordinates of each sample on the plot
 Negative_PCA2 <- cbind(df, Negative_PCA$x[,1:2])
 
 Negative_PCA2$Diagnosis <- factor(Negative_PCA2$Diagnosis, 
-                                           levels = c("CHP", "COVID", "IPF",
+                                           levels = c("Fibrotic HP", "COVID", "IPF",
                                                       "Non-fibrotic controls", "Negative Control"))
 
 ## To demonstrate that negative controls are different from TRUE BAL samples
@@ -390,7 +391,7 @@ Palette <- c(Sphingomonas = "#483d8b",
              Staphylococcus = "#f4c430")
 
 df_negative_long_summarised$Diagnosis <- factor(df_negative_long_summarised$Diagnosis, 
-                                           levels = c("CHP", "COVID", "IPF",
+                                           levels = c("Fibrotic HP", "COVID", "IPF",
                                                       "Non-fibrotic controls", "Negative Control"))
 df_negative_long_summarised$SampleType <- gsub("BAL",
                                               "BAL Flush Control",
@@ -471,13 +472,14 @@ df_healthy <- Controls_relative_beta_genus
 df_healthy <- column_to_rownames(df_healthy, var = "rowname")
 df_healthy <- as.data.frame(t(df_healthy))
 df_healthy <- rownames_to_column(df_healthy, "sample-id")
+metadata <- rownames_to_column(metadata, "sample-id")
 df_healthy <- inner_join(metadata, df_healthy)
 df_healthy[, 15:ncol(df_healthy)] <- lapply(df_healthy[, 15:ncol(df_healthy)], as.numeric)
 
 df_healthy_filtered <- df_healthy %>%
   filter(Diagnosis == "Non-fibrotic controls" & SampleType=="BAL")
 
-# Samples not present in CHP paper are true healthy patients
+# Samples not present in Fibrotic HP paper are true healthy patients
 df_healthy_filtered <- df_healthy_filtered %>%
   mutate(Diagnosis = case_when(str_detect(PatientID, "ILDCON106") ~ "Healthy",
                                str_detect(PatientID, "ILDCON107") ~ "Healthy",
@@ -732,7 +734,7 @@ ggsave("Figures/Ten most abundant Genus unfiltered_contaminant.pdf", width = 300
 # BRU.1032, BRU0.3853 and BRU.03815 to be excluded too for Non-fibrotic controls.
 
 #### Alpha-plot ASV ####
-# Is the lung microbiota of COVID different than IPF, CHP and HC?
+# Is the lung microbiota of COVID different than IPF, Fibrotic HP and HC?
 physeq_filtered <- subset_samples(physeq, c(!Diagnosis=="Negative Control",
                                             !PatientID=="POST.02.005",
                                             !PatientID=="BRU.1032",
@@ -741,7 +743,7 @@ physeq_filtered <- subset_samples(physeq, c(!Diagnosis=="Negative Control",
                                             !Diagnosis=="Mock")) 
 
 sample_data(physeq_filtered)$Diagnosis <- factor(sample_data(physeq_filtered)$Diagnosis,
-                                                 levels =c("CHP", "COVID", 
+                                                 levels =c("Fibrotic HP", "COVID", 
                                                            "Non-fibrotic controls", "IPF"))
 
 p = plot_richness(physeq_filtered, x="Diagnosis", color="Diagnosis", measures=c("Observed","Shannon", "Chao1"))
@@ -755,10 +757,10 @@ kruskal.test(value ~ Diagnosis, alpha_diversity_chao)
 dunnTest(value ~ Diagnosis, alpha_diversity_chao)
 
 #Comparison          Z     P.unadj      P.adj
-#1                  CHP - COVID -2.7277255 0.006377265 0.04096938 # sig
-#2                    CHP - IPF  0.5746988 0.565495002 0.52190192
+#1                  Fibrotic HP - COVID -2.7277255 0.006377265 0.04096938 # sig
+#2                    Fibrotic HP - IPF  0.5746988 0.565495002 0.52190192
 #3                  COVID - IPF  2.8327716 0.004614634 0.03127422 # sig
-#4   CHP - Non-fibrotic control -2.0607615 0.039325802 0.07338371
+#4   Fibrotic HP - Non-fibrotic control -2.0607615 0.039325802 0.07338371
 #5 COVID - Non-fibrotic control  0.9398803 0.347278977 0.94239584
 #6   IPF - Non-fibrotic control -2.2193536 0.026462678 0.06225628
 print(p)
@@ -1566,7 +1568,7 @@ df_genus <- df_genus %>%
   filter(Diagnosis == "COVID" | Diagnosis=="Non-fibrotic controls"|Diagnosis=="IPF") %>%
   #filter(!Diagnosis=="COVID") %>% filter(!Diagnosis=="Negative Control") %>%
   filter(!SampleType=="OR") %>%
-  select(-Unknown) %>%
+  select(-Unknown) %>% # it'll be top ten but won't provide much information. 
   filter(!PatientID=="POST.02.005") %>% filter(!PatientID == "BRU.1032") %>% 
   filter(!PatientID == "BRU.03853") %>% filter(!PatientID == "BRU.03853") %>%
   filter(!PatientID=="BRU.03815") 
@@ -1590,7 +1592,7 @@ df_genus_top <- cbind(meta_table, top)
 taxa_list
 
 kruskal.test(Streptococcus ~ Diagnosis, df_genus_top) #p=0.037
-dunnTest(Streptococcus ~ Diagnosis, df_genus_top, method="holm") # COVID-IPF
+dunnTest(Streptococcus ~ Diagnosis, df_genus_top, method="holm") # COVID-IPF 0.03
 
 kruskal.test(Prevotella ~ Diagnosis, df_genus_top)
 kruskal.test(Veillonella ~ Diagnosis, df_genus_top)
@@ -1615,11 +1617,12 @@ df_long_summarised <- df_long %>%
   group_by(Diagnosis, Genus) %>%
   summarise(mean_value=mean(value),
             sd=sd(value),
+            median=median(value),
             q1 = quantile(value, 0.25),  # 1st quartile
             q3 = quantile(value, 0.75)) # 3rd quartile
 
 dat_text <- data.frame(
-  label=c(" ", "**","**"),
+  label=c(" ", "*","*"),
   Diagnosis=c("Non-fibrotic controls","COVID","IPF"),
   x = c(1,1,1), 
   y = c(40,50,40)
@@ -1632,11 +1635,11 @@ dat_text2 <- data.frame(
   y = c(20,20,20)
 )
 
-p <- ggplot(df_long_summarised, aes(x=Genus, y=mean_value)) + 
-  geom_bar(aes(y = mean_value, x = Genus, fill = Genus),
+p <- ggplot(df_long_summarised, aes(x=Genus, y=median)) + 
+  geom_bar(aes(y = median, x = Genus, fill = Genus),
            stat="identity") +
-  geom_errorbar(aes(x=Genus, ymin=(mean_value-sd), ymax=(mean_value+sd)), width=0.3, color='black', linewidth=0.5)
-df_long_summarised$Diagnosis <- ordered(df_long_summarised$Diagnosis, levels = c("Non-fibrotic controls", "COVID","IPF", "CHP"))
+  geom_errorbar(aes(x=Genus, ymin=(q1), ymax=(q3)), width=0.3, color='black', linewidth=0.5)
+df_long_summarised$Diagnosis <- ordered(df_long_summarised$Diagnosis, levels = c("Non-fibrotic controls", "COVID","IPF", "Fibrotic HP"))
 levels(df_long_summarised$Diagnosis)
 p <- p + scale_fill_manual(values = c("darkseagreen", "forestgreen", "darkgreen", "gold", "sandybrown", "coral", "lightskyblue", "royalblue", "darkblue", "firebrick")) + 
         theme_classic() + 
@@ -1686,12 +1689,12 @@ taxa_list
 df_phylum_top <- cbind(meta_table, top)
 
 kruskal.test(Firmicutes ~ Diagnosis, df_phylum_top) #p=0.02
-dunnTest(Firmicutes ~ Diagnosis, df_phylum_top, method="holm") # COVID-Non-fibrotic controls p=0.01, COVID-IPF p=0.04
+dunnTest(Firmicutes ~ Diagnosis, df_phylum_top, method="holm") # COVID-Non-fibrotic controls p=0.02, COVID-IPF p=0.04
 kruskal.test(Bacteroidetes ~ Diagnosis, df_phylum_top) #p=0.19
 kruskal.test(Proteobacteria ~ Diagnosis, df_phylum_top) #p=0.04
 dunnTest(Proteobacteria ~ Diagnosis, df_phylum_top, method="holm") # NS
-kruskal.test(Actinobacteria ~ Diagnosis, df_phylum_top) #p=0.19
-kruskal.test(Fusobacteria ~ Diagnosis, df_phylum_top) #p=0.17
+kruskal.test(Actinobacteria ~ Diagnosis, df_phylum_top) #p=0.29
+kruskal.test(Fusobacteria ~ Diagnosis, df_phylum_top) #p=0.12
 kruskal.test(Verrucomicrobia ~ Diagnosis, df_phylum_top) #p=0.03
 dunnTest(Verrucomicrobia ~ Diagnosis, df_phylum_top, method="holm") #NS
 
@@ -1704,7 +1707,10 @@ df_long <- melt(df_phylum_top, id.vars = "Diagnosis",
 df_long_summarised <- df_long %>%
   group_by(Diagnosis, Phylum) %>%
   summarise(mean_value=mean(value),
-            sd=sd(value))
+            median=median(value),
+            sd=sd(value),
+            q1 = quantile(value, 0.25),  # 1st quartile
+            q3 = quantile(value, 0.75)) # 3rd quartile
 
 # Firmicutes
 dat_text <- data.frame(
